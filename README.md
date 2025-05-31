@@ -103,6 +103,7 @@ You can customize the game by modifying the constants at the top of the `<script
 To make each round 30 seconds long, update the `GAME_DURATION`:
 ```javascript
 const GAME_DURATION = 30;
+```
 
 ## Contributing
 Contributions are welcome! If you have ideas for new features, bug fixes, or improvements, feel free to:
