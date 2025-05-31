@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <title>Bubble Click Game</title>
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background: linear-gradient(to bottom, #5e2e7d, #2e1a47);
+            font-family: Arial, sans-serif;
+            color: white;
+            touch-action: manipulation;
+        }
+        #game-container {
+            text-align: center;
+            position: relative;
+            width: 100%;
+            max-width: 400px;
+            height: 78vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+        #level-text {
+            font-size: 1.5em;
+            margin: 10px 0;
+            min-height: 30px;
+        }
+        #progress-bar-container {
+            width: 80%;
+            height: 20px;
+            background: #b8b8b873;
+            border-radius: 10px;
+            margin: 0 auto 10px auto;
+            position: relative;
+            overflow: hidden;
+        }
+        #progress-bar {
+            width: 0%;
+            height: 100%;
+            background: #b8b8b873;
+            transition: width 0.3s ease;
+        }
+        .checkpoint {
+            position: absolute;
+            top: 0;
+            width: 2px;
+            height: 100%;
+            background: white;
+        }
+        #bubbles {
+            position: relative;
+            width: 200px;
+            height: 200px;
+            margin: auto;
+        }
+        .bubble {
+            width: 60px;
+            height: 60px;
+            background: #b8b8b873;
+            border-radius: 50%;
+            cursor: pointer;
+            position: absolute;
+            -webkit-tap-highlight-color: transparent;
+            outline: none;
+            transition: 0.15s all;
+        }
+        .bubble:focus {
+            outline: none;
+        }
+        .bubble.filled {
+            background: white;
+        }
+        .bubble:nth-child(1) { top: 0; left: 69%; transform: translateX(-50%); }
+        .bubble:nth-child(2) { top: 0; left: 29%; transform: translateX(-50%); }
+        .bubble:nth-child(3) { top: 50%; left: 0; transform: translateY(-50%); }
+        .bubble:nth-child(4) { top: 50%; left: 50%; transform: translate(-50%, -50%); }
+        .bubble:nth-child(5) { top: 50%; right: 0; transform: translateY(-50%); }
+        .bubble:nth-child(6) { bottom: 0; left: 31%; transform: translateX(-50%); }
+        .bubble:nth-child(7) { bottom: 0; left: 70%; transform: translateX(-50%); }
+        #timer {
+            font-size: 1.2em;
+            margin-top: 10px;
+        }
+        #score {
+            font-size: 1.2em;
+            margin-top: 10px;
+        }
+        #start-button {
+            position: absolute;
+            top: 43%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            padding: 15px 30px;
+            font-size: 1.5em;
+            color: white;
+            background: #7a3c9e;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            z-index: 500;
+        }
+        #start-button.hidden {
+            display: none;
+        }
+        #popup {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.8);
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            z-index: 1000;
+        }
+        #popup-message {
+            font-size: 1.2em;
+            margin-bottom: 15px;
+        }
+        #reset-prompt {
+            font-size: 1em;
+            margin-bottom: 15px;
+        }
+        #reset-button {
+            color: #ccc;
+            text-decoration: underline;
+            cursor: pointer;
+            margin-bottom: 10px;
+            display: inline-block;
+        }
+        #reset-button.disabled {
+            color: #666;
+            cursor: not-allowed;
+            text-decoration: none;
+        }
+        #next-level {
+            color: #4b0a0a;
+            text-decoration: underline;
+            cursor: pointer;
+        }
+        #next-level.disabled {
+            color: #666;
+            cursor: not-allowed;
+            text-decoration: none;
+        }
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <div>
+            <div id="level-text">Level: Not Started</div>
+            <div id="progress-bar-container">
+                <div id="progress-bar"></div>
+                <div class="checkpoint" style="left: 33.33%"></div>
+                <div class="checkpoint" style="left: 66.66%"></div>
+            </div>
+        </div>
+        <div id="bubbles"></div>
+        <div>
+            <div id="timer">Time: 20s</div>
+            <div id="score">Score: 0</div>
+        </div>
+    </div>
+    <button id="start-button">Start</button>
+    <div id="popup" class="hidden">
+        <div id="popup-message"></div>
+        <div id="reset-prompt" class="hidden">If you think you can do it better another time, reset the game.</div>
+        <div id="reset-button">Reset Game</div>
+        
+        <!-- Change the action to get to where your users should go after finishing the game -->
+        <form action="#" method="GET" >
+            <input type="hidden" name="final-score" id="final-score" value="0"/>
+            <button type="submit" id="next-level">Go to Next Page</button>
+        </form>
+    </div>
+
+    <script>
+        // Total number of clicks required to fill the progress bar completely
+        const TOTAL_CLICKS = 65;
+
+        // Duration of each game round in seconds
+        const GAME_DURATION = 20;
+
+        // Maximum number of times the user can play (reset and replay)
+        const MAX_PLAYS = 3;
+
+        // Interval in milliseconds between bubble fill updates
+        const BUBBLE_INTERVAL = 300;
+
+        // Duration in milliseconds that a bubble stays filled
+        const BUBBLE_DURATION = 800;
+
+        // Maximum number of bubbles that can be filled at the same time
+        const MAX_FILLED_BUBBLES = 2;
+
+        // Admin flag: true to use the best score across plays, false to use the last score
+        const USE_BEST_SCORE = true;
+
+        let score = 0;
+        let gameActive = false;
+        let timer = GAME_DURATION;
+        let playCount = 1;
+        let timerInterval;
+        let bubbleInterval;
+        let filledBubbles = [];
+        let scores = []; // Array to store final scores of each play
+
+        const bubblesContainer = document.getElementById('bubbles');
+        const progressBar = document.getElementById('progress-bar');
+        const levelText = document.getElementById('level-text');
+        const timerDisplay = document.getElementById('timer');
+        const scoreDisplay = document.getElementById('score');
+        const startButton = document.getElementById('start-button');
+        const popup = document.getElementById('popup');
+        const popupMessage = document.getElementById('popup-message');
+        const resetPrompt = document.getElementById('reset-prompt');
+        const resetButton = document.getElementById('reset-button');
+        const nextLevelLink = document.getElementById('next-level');
+        const finalScoreInput = document.getElementById('final-score');
+
+        for (let i = 0; i < 7; i++) {
+            const bubble = document.createElement('div');
+            bubble.classList.add('bubble');
+            bubble.addEventListener('click', () => handleBubbleClick(bubble));
+            bubblesContainer.appendChild(bubble);
+        }
+
+        function startGame() {
+            if (gameActive) return;
+
+            gameActive = true;
+            score = 0;
+            timer = GAME_DURATION;
+            filledBubbles = [];
+            updateScore();
+            updateTimer();
+            updateProgressBar();
+            levelText.textContent = 'Level: Not Started';
+            startButton.classList.add('hidden');
+            popup.classList.add('hidden');
+
+            timerInterval = setInterval(() => {
+                timer--;
+                updateTimer();
+                if (timer <= 0) {
+                    endGame();
+                }
+            }, 1000);
+
+            bubbleInterval = setInterval(() => {
+                toggleBubbles();
+            }, BUBBLE_INTERVAL);
+        }
+
+        function toggleBubbles() {
+            const bubbles = document.querySelectorAll('.bubble');
+
+            filledBubbles = filledBubbles.filter(bubble => {
+                const timeSinceFilled = Date.now() - bubble.dataset.fillTime;
+                if (timeSinceFilled >= BUBBLE_DURATION) {
+                    bubble.classList.remove('filled');
+                    return false;
+                }
+                return true;
+            });
+
+            if (filledBubbles.length < MAX_FILLED_BUBBLES && gameActive) {
+                const emptyBubbles = Array.from(bubbles).filter(bubble => !bubble.classList.contains('filled'));
+                if (emptyBubbles.length > 0) {
+                    const randomBubble = emptyBubbles[Math.floor(Math.random() * emptyBubbles.length)];
+                    randomBubble.classList.add('filled');
+                    randomBubble.dataset.fillTime = Date.now();
+                    filledBubbles.push(randomBubble);
+                }
+            }
+        }
+
+        function handleBubbleClick(bubble) {
+            if (!gameActive) return;
+
+            if (bubble.classList.contains('filled')) {
+                score++;
+                bubble.classList.remove('filled');
+                filledBubbles = filledBubbles.filter(b => b !== bubble);
+                updateScore();
+                updateProgressBar();
+            }
+        }
+
+        function updateScore() {
+            scoreDisplay.textContent = `Score: ${score}`;
+        }
+
+        function updateTimer() {
+            timerDisplay.textContent = `Time: ${timer}s`;
+        }
+
+        function updateProgressBar() {
+            const progress = (score / TOTAL_CLICKS) * 100;
+            progressBar.style.width = `${progress}%`;
+
+            if (progress >= 66.66) {
+                progressBar.style.background = 'red';
+                levelText.textContent = 'Level: Red';
+                finalScoreInput.value = 'red';
+            } else if (progress >= 33.33) {
+                progressBar.style.background = 'orange';
+                levelText.textContent = 'Level: Orange';
+                finalScoreInput.value = 'orange';
+            } else {
+                progressBar.style.background = 'yellow';
+                levelText.textContent = 'Level: Yellow';
+                finalScoreInput.value = 'yellow';
+            }
+
+            if (score >= TOTAL_CLICKS) {
+                endGame();
+            }
+        }
+
+        function endGame() {
+            gameActive = false;
+            clearInterval(timerInterval);
+            clearInterval(bubbleInterval);
+            document.querySelectorAll('.bubble').forEach(bubble => {
+                bubble.classList.remove('filled');
+            });
+            filledBubbles = [];
+
+            // Store the final score of this play
+            scores.push(score);
+
+            // Determine the score to display and set in the hidden input
+            let displayScore;
+            let displayLevel;
+            if (USE_BEST_SCORE) {
+                // Use the best (highest) score
+                displayScore = Math.max(...scores);
+                // Recalculate the level based on the best score
+                const progress = (displayScore / TOTAL_CLICKS) * 100;
+                if (progress >= 66.66) {
+                    displayLevel = 'red';
+                } else if (progress >= 33.33) {
+                    displayLevel = 'orange';
+                } else {
+                    displayLevel = 'yellow';
+                }
+            } else {
+                // Use the last score
+                displayScore = scores[scores.length - 1];
+                displayLevel = finalScoreInput.value; // Use the level already calculated for the last score
+            }
+
+            // Update popup message and hidden input
+            popupMessage.textContent = `Game Over! ${USE_BEST_SCORE ? 'Best Score' : 'Final Score'}: ${displayScore} (Level: ${displayLevel})`;            finalScoreInput.value = displayLevel; // Set the hidden input to the level corresponding to the displayed score
+            popup.classList.remove('hidden');
+            
+            // Show reset prompt only after the first round
+            if (playCount === 1) {
+                resetPrompt.classList.remove('hidden');
+            } else {
+                resetPrompt.classList.add('hidden');
+            }
+
+            // Enable reset button only if playCount is less than MAX_PLAYS
+            if (playCount < MAX_PLAYS) {
+                resetButton.classList.remove('hidden');
+                resetButton.classList.remove('disabled');
+            } else {
+                resetButton.classList.remove('hidden');
+                resetButton.classList.add('disabled');
+            }
+            nextLevelLink.classList.remove('hidden');
+        }
+
+        function resetGame() {
+            if (playCount >= MAX_PLAYS || gameActive) return;
+            playCount++;
+            popup.classList.add('hidden');
+            startButton.classList.remove('hidden');
+            popup.classList.add('hidden');
+            startGame();
+        }
+
+        startButton.addEventListener('click', startGame);
+        resetButton.addEventListener('click', resetGame);
+        nextLevelLink.addEventListener('click', () => {
+            if (!gameActive) {
+                window.location.href = '#';
+            }
+        });
+    </script>
+
+</body>
+</html>
